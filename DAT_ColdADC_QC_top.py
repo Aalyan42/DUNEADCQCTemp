@@ -60,6 +60,9 @@ logsd, fdir =  dat_read_cfg(infile_mode=True,  froot = froot)
 # LBL ADD, reading in signal generator and assigning to siggen_type, checking that type typed in correctly
 
 siggen_type = logsd["siggen_type"].strip().lower()
+raw_freq_list = logsd['freq_list']
+freq_list = [float(x) for x in raw_freq_list.split(';')] # in Hz
+
 
 if siggen_type not in ["srs", "keysight"]:
     print(f"\033[91mError: Unknown signal generator type '{siggen_type}'. Must be 'srs' or 'keysight'.\033[0m")
@@ -170,7 +173,7 @@ if 0 in tms:
                         print ("ADC_Fail(1-8):", datad["ADC_Fail"])
                     else:
                         datad.update(chkdata)
-                        datad["QCstatus"] = "Code#W204(ColdADC): To be anlyze at PC side"
+                        datad["QCstatus"] = "Code#W204(ColdADC): To be analyze at PC side"
         if init_ok:
             #back to default
             dat.femb_cd_rst()
@@ -290,9 +293,7 @@ if 4 in tms:#if "autocali_placeholder" in tms:
     with open(fp, 'wb') as fn:
         pickle.dump(datad, fn)    
     tt.append(time.time())
-#    print ("\033[92mADC autocalibration check is done. it took %d seconds   \033[0m"%(tt[-1]-tt[-2]))  
-
-    print("RUNNING TEST 4") ######## testing purposes
+    print ("\033[92mADC autocalibration check is done. it took %d seconds   \033[0m"%(tt[-1]-tt[-2]))  
 
     print ("save_fdir_start_%s_end_save_fdir"%fdir)
     print ("save_file_start_%s_end_save_file"%fp)
@@ -580,7 +581,7 @@ if 8 in tms:#if "enob_placeholder" in tms:
     #cfg_info = dat.dat_adc_qc_cfg(sha_cs=2, ibuf_cs=1)  #SED on, DIFF OFF
     dat.dat_coldadc_input_cs(mode=source, SHAorADC = "SHA", chsenl=0x0000)
     datad = {}
-    datad['logs'] = logs 
+    datad['logs'] = logs
     datad['source'] = source
 
     #Replace these or input them in DAT_user_input.py as necessary:
@@ -588,7 +589,9 @@ if 8 in tms:#if "enob_placeholder" in tms:
     datad['waveform'] = 'SINE' 
     datad['num_samples'] = 16384
     datad['voltage_low'] = 0.3 # V
-    datad['voltage_high'] = 1.5 #V
+    datad['voltage_high'] = 1.5 # V
+
+    current_freq = float(logsd["current_freq"].strip()) #####
 
     if siggen_type == 'keysight':
 
@@ -600,16 +603,19 @@ if 8 in tms:#if "enob_placeholder" in tms:
                 
             datad['enobdata_%010.3f'%freq] = [dat.fembs, dat.dat_enob_acq_2(sineflg=True), cfg_info, "SINE"]
 
-    # if siggen_type == 'srs':
+        dat.sig_gen_config()
+
+    if siggen_type == 'srs':
+            
+        datad['enobdata_%010.3f'%current_freq] = [dat.fembs, dat.dat_enob_acq_2(sineflg=True), cfg_info, "SINE"]
         
 ###### LBL, we need to change wb (write binary) to ab (append binary) from the pickle library, in order for our files to append instead of overwrite when the srs gen code iterates over test 8 using different frequencies
-    fp = fdir + "QC_ENOB.bin"
-    with open(fp, 'wb') as fn:
+    fp = fdir + 'QC_ENOB' + str(current_freq) + '.bin'
+    with open(fp, 'ab') as fn:
         pickle.dump(datad, fn)
 
-    dat.sig_gen_config()
     tt.append(time.time())        
-#    print ("\033[92mADC enob measurement is done. it took %d seconds   \033[0m"%(tt[-1]-tt[-2])) 
+    print ("\033[92mADC enob measurement is done. it took %d seconds   \033[0m"%(tt[-1]-tt[-2])) 
     print ("save_fdir_start_%s_end_save_fdir"%fdir)
     print ("save_file_start_%s_end_save_file"%fp)
     print ("Done! Pass! it took %d seconds"%(tt[-1]-tt[-2]))
@@ -656,14 +662,23 @@ if 12 in tms:
     datad['voltage_low'] = -0.2 # V
     datad['voltage_high'] = 2.2 #V
     
-    dat.sig_gen_config(waveform = datad['waveform'], freq=datad['freq'], vlow=datad['voltage_low'], vhigh=datad['voltage_high']) 
+    if siggen_type == 'keysight':
+
+        dat.sig_gen_config(waveform = datad['waveform'], freq=datad['freq'], vlow=datad['voltage_low'], vhigh=datad['voltage_high']) 
         
     cfg_info = dat.dat_adc_qc_cfg() 
     #dat.dat_coldadc_input_cs(mode="WIBSE", SHAorADC = "SHA", chsenl=0x0000)
     dat.dat_coldadc_input_cs(mode="P6SE", SHAorADC = "SHA", chsenl=0x0000)
     dat.dat_adc_qc_acq(1) #trigger readout, save in case of issue
-    datad['rawdata'] = [dat.fembs, dat.dat_enob_acq(sineflg=False), cfg_info, "TRIG"]
-    dat.sig_gen_config()
+
+    if siggen_type == 'keysight':
+        
+        datad['rawdata'] = [dat.fembs, dat.dat_enob_acq(sineflg=False), cfg_info, "TRIG"]
+        dat.sig_gen_config()
+
+    elif siggen_type == 'srs':
+
+        datad['rawdata'] = [dat.fembs, dat.dat_enob_acq(sineflg=False), cfg_info, "SINE"]
     
     fp = fdir + "QC_TRIG" + ".bin"
     with open(fp, 'wb') as fn:

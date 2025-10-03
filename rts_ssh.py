@@ -5,7 +5,7 @@ import datetime
 import filecmp
 import pickle
 import os
-from DAT_read_cfg import dat_read_cfg
+from DAT_read_cfg import dat_read_cfg, update_csv
 from DAT_InitChk import dat_initchk
 from colorama import just_fix_windows_console
 from DAT_COLDATA_QC_ana import CD_QC_ANA 
@@ -105,6 +105,9 @@ def rts_ssh(dut_skt, root = "C:/DAT_LArASIC_QC/Tested/", duttype="FE", env="RT" 
     logsd, fdir =  dat_read_cfg(infile_mode=True,  froot = froot)
 
     siggen_type = logsd["siggen_type"].strip().lower()
+    raw_freq_list = logsd['freq_list']
+    freq_list = [float(x) for x in raw_freq_list.split(';')] # in Hz
+
 
     if siggen_type not in ["srs", "keysight"]:
         print(f"\033[91mError: Unknown signal generator type '{siggen_type}'. Must be 'srs' or 'keysight'.\033[0m")
@@ -116,11 +119,6 @@ def rts_ssh(dut_skt, root = "C:/DAT_LArASIC_QC/Tested/", duttype="FE", env="RT" 
 
     if siggen_type == 'srs':
         srs_gen=SRS_DS360()
-
-        # set frequency, amplitude, offset (hardcode these values?)
-        srs_gen.setFreq(147460)
-        srs_gen.setAmpl(1.44)
-        srs_gen.setOffset(0.9)
 
     ######################################################################################################
 
@@ -178,17 +176,16 @@ def rts_ssh(dut_skt, root = "C:/DAT_LArASIC_QC/Tested/", duttype="FE", env="RT" 
 #        tms_items[10] = "\033[96m 10: Turn DAT (on WIB slot0) on without any check\033[0m"
     elif "ADC" in duttype:
         tms_items[0  ] = "\033[96m 0: Initilization checkout (not selectable for itemized test item) \033[0m"
-        # tms_items[1  ] = "\033[96m 1: ADC power cycling measurement  \033[0m"
-#        tms_items[2  ] = "\033[96m 2: ADC reserved...  \033[0m"
-        # tms_items[3  ] = "\033[96m 3: ADC reference voltage measurement  \033[0m"
+        tms_items[1  ] = "\033[96m 1: ADC power cycling measurement  \033[0m"
+        # # # tms_items[2  ] = "\033[96m 2: ADC reserved...  \033[0m"
+        tms_items[3  ] = "\033[96m 3: ADC reference voltage measurement  \033[0m"
         tms_items[4  ] = "\033[96m 4: ADC autocalibration check  \033[0m"
-        # tms_items[5  ] = "\033[96m 5: ADC noise measurement  \033[0m"
-        # tms_items[7  ] = "\033[96m 7: ADC DAT-DAC SCAN  \033[0m"
-        # tms_items[11 ] = "\033[96m 11: ADC ring oscillator frequency readout \033[0m"
-        #tms_items[12 ] = "\033[96m 12: ADC RANGE test \033[0m"
-        #tms_items[8  ] = "\033[96m 8: ADC ENOB measurement \033[0m"
+        tms_items[5  ] = "\033[96m 5: ADC noise measurement  \033[0m"
+        tms_items[7  ] = "\033[96m 7: ADC DAT-DAC SCAN  \033[0m"
+        tms_items[11 ] = "\033[96m 11: ADC ring oscillator frequency readout \033[0m"
+        tms_items[12 ] = "\033[96m 12: ADC RANGE test \033[0m"
+        tms_items[8  ] = "\033[96m 8: ADC ENOB measurement \033[0m"
         tms_items[6  ] = "\033[96m 6: ADC DNL/INL measurement  \033[0m"
-        #### commented out AA 7/2 tests 12, 8, 6
         tms_items[9  ] = "\033[96m 9: Turn DAT off \033[0m"
 #        tms_items[10 ] = "\033[96m 10: Turn DAT (on WIB slot0) on without any check\033[0m"
     elif "CD" in duttype:
@@ -352,18 +349,42 @@ def rts_ssh(dut_skt, root = "C:/DAT_LArASIC_QC/Tested/", duttype="FE", env="RT" 
 
                 #AA Attempt for test 8 iteration (7/17)
 
-                if testid in (6,12) and siggen_type == 'srs':
-                    print("\nGENERATOR ON")
+                if testid == 6 and siggen_type == 'srs':
+                    srs_gen.setFreq(147460)
+                    srs_gen.setAmpl(1.44) # "Amplitude" is PEAK TO PEAK
+                    srs_gen.setOffset(0.9)
+
                     srs_gen.turnON()
+                    print("GENERATOR ON\n")
 
                 elif testid == 8 and siggen_type =='srs':
-                    freq_list = [10, 20, 50, 100] # in Hz, placeholders
+                    srs_gen.setAmpl(1.2)
+                    srs_gen.setOffset(0.9)
+
+                    last_freq = freq_list[len(freq_list)-1]
                     for freq in freq_list:
+
                         srs_gen.setFreq(freq)
                         srs_gen.turnON()
-                # we can read frequency list to csv if we want to add freq # to filename, otherwise the files won't be marked by frequency. 
+                        print("GENERATOR ON, FREQ: " + str(freq) + "\n")
 
-                ###########################
+                        update_csv(logs['PC_WRCFG_FN'], 'current_freq', freq)
+
+                        if freq < last_freq:
+                            command = ["ssh", wibhost, "cd BNL_CE_WIB_SW_QC; python3 DAT_ColdADC_QC_top.py -t {}".format(testid)]
+
+                            result=subrun(command, timeout = None)
+
+                            print(f'printing result' + result.stdout)
+
+                elif testid == 12 and siggen_type == 'srs':
+
+                    srs_gen.setOffset(1.0)
+                    srs_gen.setAmpl(2.4)
+                    srs_gen.setFreq(400)
+                    
+                    srs_gen.turnON()
+                    print("GENERATOR ON\n")
 
 
                 command = ["ssh", wibhost, "cd BNL_CE_WIB_SW_QC; python3 DAT_ColdADC_QC_top.py -t {}".format(testid)]
@@ -373,11 +394,20 @@ def rts_ssh(dut_skt, root = "C:/DAT_LArASIC_QC/Tested/", duttype="FE", env="RT" 
 
             result=subrun(command, timeout = None) #rewrite with Popen later
 
+            ############################################## LBL sig gen OFF
+
+            if testid in (6, 8, 12) and siggen_type == 'srs': # tests that use signal generator
+                    
+                    srs_gen.turnOFF()
+                    print("GENERATOR OFF\n")
+            
+
 ##############################################################################################
 
 
 # LBL augmented code for testing, added error codes to FAIL statements
             print(f'printing result' + result.stdout) # prints out the whole task list and everything, LBL Added
+
             if result != None:
                 resultstr = result.stdout
                 logs["QC_TestItemID_%03d"%testid] = [command, resultstr]
@@ -398,17 +428,8 @@ def rts_ssh(dut_skt, root = "C:/DAT_LArASIC_QC/Tested/", duttype="FE", env="RT" 
                     #exit()
             else:
                 print ("FAIL!361")
-            #    print(f'printing result' + result.stdout)#### lbl added
+                print(f'printing result' + result.stdout)#### lbl added
                 return None 
-
-
-            ############################################## LBL sig gen OFF
-
-            if testid in (6, 8, 12) and siggen_type == 'srs': # tests that use signal generator
-                    print("\nGENERATOR OFF")
-                    srs_gen.turnOFF()
-            
-            ###################################################
             
 
 ##############################################################################################

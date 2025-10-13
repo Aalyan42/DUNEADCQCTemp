@@ -5,7 +5,7 @@ import time
 import datetime
 import random
 import pickle
-from DAT_read_cfg import dat_read_cfg
+from DAT_read_cfg import dat_read_cfg, update_csv
 import filecmp
 from colorama import just_fix_windows_console
 just_fix_windows_console()
@@ -58,34 +58,6 @@ elif chiptype == 3:
     duttype = "CD"
     rootdir = rootdir_cs(duttype)
 
-
-
-###############################################################################################
-
-
-# # #LBL CHANGE: Update which generator in CSV File
-
-# siggen_type = input("Function Generator Type (keysight/srs):  ").strip().lower()
-
-# with open("asic_info.csv", "r") as f:
-#     lines = f.readlines()
-
-# found = False
-# for i in range(len(lines)):
-#     if lines[i].lower().startswith("siggen_type"):
-#         lines[i] = f"siggen_type,{siggen_type}\n"
-#         found = True
-#         break
-# if not found:
-#     lines.append(f"siggen_type,{siggen_type}\n")
-# with open("asic_info.csv", "w") as f:
-#     f.writelines(lines)
-
-###############################################################################################
-
-
-
-
 env = input ("RT/LN : ")
 while True:
     print ("\033[96m Root folder of test data is: "+ "\033[93m" + rootdir + "\033[0m")
@@ -98,9 +70,6 @@ while True:
         exit()
 
 pc_wrcfg_fn = "./asic_info.csv"
-
-############################################################
-
 
 def DAT_QC(rootdir, dut_skt, duttype="FE",  env="RT") :
     while True:
@@ -140,38 +109,6 @@ if True:
         if chk1 in log and chk2 >= 1:  #improve it later
             print ("\033[0m ", datetime.datetime.utcnow(), "\033[92m  : SUCCESS!  \033[0m")
             break
-#####################################################################################################
-
-# #LBL: option to choose which generator
-
-
-# # create empty list to store name of signal generator
-# sig_gen_op = -1
-
-# # define signal genertor options
-# func_gen = {"0": "Keysight_33600A",
-#             "1" : "SRS_DS360"   
-
-# }
-# available_choices = [0,1]
-
-
-# #print available signal generators
-# print("\n Available  Signal Generators")
-# for key, name in func_gen.items():
-#     print(f" {key}, {name}")
-
-# #give user choice of which signal generator to use
-# while True:
-#     choice = input("\033[96m Which function generator is being used (0/1)?    \033[95m ").strip()
-#     if choice == 0 or choice == 1:
-#         #assigns generator_name to our chosen signal generator
-#         sig_gen_op = choice
-#     else:
-#          print ( "Invalid selection")
-
-
-###############################################################################################
 
 while True:#
     ynstr = input("\033[93m  Please open the shielding box to check if all LEDs on DAT are OFF! (Y/N) \033[95m")
@@ -200,34 +137,9 @@ if True:
         else:
             print ( "\033[91m Please re-position chips in socket!" + "\033[0m")
 
-######################################################################################################
-
-
-# # old version         
-#     while True:#
-#         print ("\033[93m Please update chip serial numbers"+ "\033[0m")
-#         command = ["notepad.exe", pc_wrcfg_fn]
-#         result=subrun(command, timeout = None, check=False)
-#         pf= dat_chk_cfgfile(fcfg = pc_wrcfg_fn, duttype=duttype )
-#         if pf:
-#             break
-#         else:
-#             yns = input ("\033[96m re-open config file for editting (Y/N): " + "\033[95m" )
-#             if "Y" in yns or "y" in yns:
-#                 pass
-#             else:
-#                 print ("\033[91m exit anyway \033[0m")
-#                 print ("\033[91m please restart the test script \033[0m")
-#                 exit()
-
-
-###########################################################################################################
-
-
-# LBL Update to ask for sig gen type:
 
     while True:
-        print ("\033[93m Please update chip serial numbers and add your signal generator type in lower case \n   → Add a line like: siggen_type,srs,  \033[0m")
+        print ("\033[93m Please update chip serial numbers and signal generator type \n \033[0m") # LBL Updated to ask for signal generator type
         command = ["notepad.exe", pc_wrcfg_fn]
         result = subrun(command, timeout = None, check=False)
 
@@ -257,10 +169,7 @@ if True:
                 print("\033[91m Exit anyway \033[0m")
                 exit()
         else:
-            break  #
-
-
-###########################################################################################################
+            break
 
 
 if False: #included in rts_ssh.py 
@@ -289,7 +198,7 @@ if False: #included in rts_ssh.py
 
 now = datetime.datetime.utcnow()
 dut0 = int(now.strftime("%Y%m%d%H%M%S"))&0xFFFFFFFFFFFFFFFF
-################STEP1#################################
+
 skts=[0,1,2,3,4,5,6,7]
 dut_skt = {str(dut0):(0,1), str(dut0+1):(0,2), str(dut0+2):(0,3), str(dut0+3):(0,4), str(dut0+4):(0,5), str(dut0+5):(0,6), str(dut0+6):(0,7), str(dut0+7):(0,8) }
 

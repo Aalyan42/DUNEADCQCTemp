@@ -20,6 +20,7 @@ wibip = "192.168.121.123"
 wibhost = "root@{}".format(wibip)
 
 def subrun(command, timeout = 30, check=True, exitflg = True):
+    print(command)
     try:
         result = subprocess.run(command,
                                 capture_output=True,
@@ -105,20 +106,16 @@ def rts_ssh(dut_skt, root = "C:/DAT_LArASIC_QC/Tested/", duttype="FE", env="RT" 
     logsd, fdir =  dat_read_cfg(infile_mode=True,  froot = froot)
 
     siggen_type = logsd["siggen_type"].strip().lower()
-    raw_freq_list = logsd['freq_list']
-    freq_list = [float(x) for x in raw_freq_list.split(';')] # in Hz
-
 
     if siggen_type not in ["srs", "keysight"]:
         print(f"\033[91mError: Unknown signal generator type '{siggen_type}'. Must be 'srs' or 'keysight'.\033[0m")
         sys.exit(1)
 
-
-
     # LBL define SRS generator
-
     if siggen_type == 'srs':
         srs_gen=SRS_DS360()
+
+    freq_list = [8106.23, 14781.95, 31948.09, 72002.41, 119686.13] # to loop through outside wib for srs generator
 
     ######################################################################################################
 
@@ -330,6 +327,7 @@ def rts_ssh(dut_skt, root = "C:/DAT_LArASIC_QC/Tested/", duttype="FE", env="RT" 
         tmsi = 0
         cd_qc_ana = CD_QC_ANA()
         retry_fi = 0
+        count_8 = 0
         while True:
             if tmsi >= len(tms):
                 break
@@ -341,37 +339,31 @@ def rts_ssh(dut_skt, root = "C:/DAT_LArASIC_QC/Tested/", duttype="FE", env="RT" 
                 command = ["ssh", wibhost, "cd BNL_CE_WIB_SW_QC; python3 DAT_LArASIC_QC_top.py -t {}".format(testid)]
             elif "ADC" in DUT:
 
-                ################ LBL sig gen ON
-
-                # if testid in (6, 8, 12) and siggen_type == 'srs': # tests that use signal generator
-                #     print("\nGENERATOR ON")
-                #     srs_gen.turnON()
-
-                #AA Attempt for test 8 iteration (7/17)
-
                 if testid == 6 and siggen_type == 'srs':
                     srs_gen.setFreq(147460)
-                    srs_gen.setAmpl(1.44) # "Amplitude" is PEAK TO PEAK
+                    srs_gen.setAmpl(1.44) # "Amplitude" is PEAK TO PEAK V
                     srs_gen.setOffset(0.9)
 
                     srs_gen.turnON()
                     print("GENERATOR ON\n")
 
                 elif testid == 8 and siggen_type =='srs':
+                    
                     srs_gen.setAmpl(1.2)
                     srs_gen.setOffset(0.9)
 
-                    last_freq = freq_list[len(freq_list)-1]
-                    for freq in freq_list:
+                    last_freq = freq_list[-1]
+
+                    for i in range(len(freq_list)-1):
+                        count_8 += 1
+                        freq = freq_list[i]
 
                         srs_gen.setFreq(freq)
                         srs_gen.turnON()
                         print("GENERATOR ON, FREQ: " + str(freq) + "\n")
 
-                        update_csv(logs['PC_WRCFG_FN'], 'current_freq', freq)
-
-                        if freq < last_freq:
-                            command = ["ssh", wibhost, "cd BNL_CE_WIB_SW_QC; python3 DAT_ColdADC_QC_top.py -t {}".format(testid)]
+                        if freq < last_freq:    # doing this so that the last frequency runs in the wib via the line below elif 'CD' line 395. saves us writing code
+                            command = ["ssh", wibhost, "cd BNL_CE_WIB_SW_QC; python3 DAT_ColdADC_QC_top.py -t {}".format(testid) + " -i {}".format(i)]
 
                             result=subrun(command, timeout = None)
 
@@ -392,18 +384,16 @@ def rts_ssh(dut_skt, root = "C:/DAT_LArASIC_QC/Tested/", duttype="FE", env="RT" 
             elif "CD" in DUT:
                 command = ["ssh", wibhost, "cd BNL_CE_WIB_SW_QC; python3 DAT_COLDATA_QC_top.py -t {}".format(testid)]
 
+            if testid == 8: 
+                command.append(" -i {}".format(len(freq_list)-1))
+                count_8 += 1
+
             result=subrun(command, timeout = None) #rewrite with Popen later
 
-            ############################################## LBL sig gen OFF
-
-            if testid in (6, 8, 12) and siggen_type == 'srs': # tests that use signal generator
+            if testid in (6, 8, 12) and siggen_type == 'srs':
                     
                     srs_gen.turnOFF()
                     print("GENERATOR OFF\n")
-            
-
-##############################################################################################
-
 
 # LBL augmented code for testing, added error codes to FAIL statements
             print(f'printing result' + result.stdout) # prints out the whole task list and everything, LBL Added
@@ -430,9 +420,6 @@ def rts_ssh(dut_skt, root = "C:/DAT_LArASIC_QC/Tested/", duttype="FE", env="RT" 
                 print ("FAIL!361")
                 print(f'printing result' + result.stdout)#### lbl added
                 return None 
-            
-
-##############################################################################################
 
 
             print ("Transfer data to PC...")
@@ -470,9 +457,6 @@ def rts_ssh(dut_skt, root = "C:/DAT_LArASIC_QC/Tested/", duttype="FE", env="RT" 
                 QCstatus, bads = dat_initchk(fdir=logs['pc_raw_dir'])
                 print (QCstatus, bads)
 
-                #debugging, to be delete
-                #QCstatus = "PASS"
-                #bads = []
 
                 if (len(bads) > 0) or ("Code#E" in QCstatus):
                     if logs['New_chips']:
@@ -554,6 +538,8 @@ def rts_ssh(dut_skt, root = "C:/DAT_LArASIC_QC/Tested/", duttype="FE", env="RT" 
     bads = []
     #chip_passed = [0,1,2,3,4,5,6,7]
     #chip_failed = []
+
+    print("test 8 count = ", count_8)
 
     return QCstatus, bads 
 

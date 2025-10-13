@@ -43,9 +43,11 @@ print ("\033[96m 9: Turn DAT off \033[0m")
 print ("\033[96m 10: Turn DAT (on WIB slot0) on without any check\033[0m")
 
 ag = argparse.ArgumentParser()
-ag.add_argument("-t", "--task", help="which QC tasks to be performed", type=int, choices=[0, 1,2,3,4,5,6,7,8,11,12,9,10],  nargs='+', default=[0,1,3,4,5,6,7,8,11,12])
+ag.add_argument("-t", "--task", help="which QC tasks to be performed", type=int, choices=[0, 1,2,3,4,5,6,7,8,11,12,9,10, 20],  nargs='+', default=[0,1,3,4,5,6,7,8,11,12])
+ag.add_argument("-i", "--index", help="which frequency index in freq_list", type=int, choices=[0,1,2,3,4], nargs='+', default=[0,1,2,3,4]) ######## LBL added
 args = ag.parse_args()   
 tms = args.task
+freqs = args.index ##### LBL added for frequency indices
 
 wib_time = datetime.datetime.now().strftime("%m-%d-%Y %H:%M:%S")
 
@@ -53,20 +55,26 @@ tt = []
 tt.append(time.time())
 
 logs = {}
-#LBL didnt write, just commenting: reads asic_info.csv file and returns a dictionary logsd with all keyvalue pairs
+
 logsd, fdir =  dat_read_cfg(infile_mode=True,  froot = froot)
 
 ######################################################################################################
 # LBL ADD, reading in signal generator and assigning to siggen_type, checking that type typed in correctly
 
 siggen_type = logsd["siggen_type"].strip().lower()
-raw_freq_list = logsd['freq_list']
-freq_list = [float(x) for x in raw_freq_list.split(';')] # in Hz
 
 
 if siggen_type not in ["srs", "keysight"]:
     print(f"\033[91mError: Unknown signal generator type '{siggen_type}'. Must be 'srs' or 'keysight'.\033[0m")
     sys.exit(1)
+
+freq_list = [8106.23, 14781.95, 31948.09, 72002.41, 119686.13]
+
+current_freq = freq_list[freqs[0]]
+print(current_freq)
+
+if 20 in tms:
+    x = 1/0
 
 ######################################################################################################
 
@@ -357,58 +365,8 @@ if 5 in tms:#if "noise_placeholder" in tms:
     print ("save_file_start_%s_end_save_file"%fp)
     print ("Done! Pass! it took %d seconds"%(tt[-1]-tt[-2]))
 
-################################################################################################################################################
-### OLD test 6 that doesn't check for sig gen type
-
-# if 6 in tms:
-
-#     print ("\033[95mADC DNL/INL measurement starts...   \033[0m")
-        
-#     datad = {}
-#     datad['logs'] = logs  
-    
-#     #Assuming slow ramp config
-#     #Replace these or input them in DAT_user_input.py as necessary:
-#     datad['fembs'] = dat.fembs
-#     datad['waveform'] = 'RAMP' 
-#     source = 'P6SE'
-#     datad['source'] = source
-#     datad['freq'] = 1 # Hz
-#     datad['voltage_low'] = -0.1 # Vpp
-#     datad['voltage_high'] = 2.0
-#     datad['num_samples'] = 2000000
-#     #datad['waveform'] = 'RAMP'
-#     #datad['source'] = 'DAT_P6'
-#     #datad['freq'] = 1000 # Hz
-#     #datad['offset'] = 1 #V    
-    
-#     dat.sig_gen_config(waveform = datad['waveform'], freq=datad['freq'], vlow=datad['voltage_low'], vhigh=datad['voltage_high']) 
-
-#     cfg_info = dat.dat_adc_qc_cfg() 
-#     dat.dat_coldadc_input_cs(mode=source, SHAorADC = "SHA", chsenl=0x0000)
-#     dat.dat_adc_qc_acq(1)
-#     histdata = dat.dat_adc_histbuf_trig(num_samples=datad['num_samples'], waveform=datad['waveform'])  
-#     datad['histdata'] = [dat.fembs, histdata, cfg_info, "WIB_SE_SHA_HIST"]
-
-#     #new FE board
-    
-#     dat.sig_gen_config() #turn signal generator off
-    
-#     fp = fdir + "QC_DNL_INL" + ".bin"
-#     with open(fp, 'wb') as fn:
-#         pickle.dump(datad, fn)
-
-#     tt.append(time.time())        
-# #    print ("\033[92mADC DNL/INL measurement is done. it took %d seconds   \033[0m"%(tt[-1]-tt[-2])) 
-#     print ("save_fdir_start_%s_end_save_fdir"%fdir)
-#     print ("save_file_start_%s_end_save_file"%fp)
-#     print ("Done! Pass! it took %d seconds"%(tt[-1]-tt[-2]))
-
-#########################################################################################################################################
 
 ### LBL UPDATED TEST 6, checks for signal generator type
-
-
 if 6 in tms:
 
     print ("\033[95mADC DNL/INL measurement starts...   \033[0m")
@@ -462,10 +420,6 @@ if 6 in tms:
     print ("Done! Pass! it took %d seconds"%(tt[-1]-tt[-2]))
 
 
-#########################################################################################################################################
-
-
-
 if 7 in tms:#if "overflow_placeholder" in tms:
     print ("\033[95mADC DAT-DAC SCAN starts...   \033[0m")
     datad = {}
@@ -509,63 +463,6 @@ if 7 in tms:#if "overflow_placeholder" in tms:
     print ("Done! Pass! it took %d seconds"%(tt[-1]-tt[-2]))
 
 
-
-
-
-
-#########################################################################################################################################
-
-#Original test 8, temporarily commented out for LBL tested 
-
-# if 8 in tms:#if "enob_placeholder" in tms:
-#     print ("\033[95mADC ENOB measurement starts...   \033[0m")
-#     #dat.en_ref10MHz(ref_en = True)
-#     #time.sleep(3)
-
-
-#     #source = 'WIBSE'
-#     source = 'P6SE'
-#     #source = 'P6DIFF'
-#     #source = 'V2P6_SE2DIFF'
-#     #source = 'V2WIB_SE2DIFF'
-#     cfg_info = dat.dat_adc_qc_cfg(autocali=1)  #SDC off, DIFF off
-#     #cfg_info = dat.dat_adc_qc_cfg(sha_cs=2, ibuf_cs=1)  #SED on, DIFF OFF
-#     dat.dat_coldadc_input_cs(mode=source, SHAorADC = "SHA", chsenl=0x0000)
-#     datad = {}
-#     datad['logs'] = logs 
-#     datad['source'] = source
-
-#     #Replace these or input them in DAT_user_input.py as necessary:
-#     datad['fembs'] = dat.fembs
-#     datad['waveform'] = 'SINE' 
-#     datad['num_samples'] = 16384
-#     datad['voltage_low'] = 0.3 # V
-#     datad['voltage_high'] = 1.5 #V
-
-   
-#     for freq in [8106.23, 14781.95, 31948.09, 72002.41, 119686.13, 200748.44, 358104.70]:  
-#         #datad['freq'] = freq #Hz
-        
-#         dat.sig_gen_config(waveform = datad['waveform'], freq=freq, vlow=datad['voltage_low'], vhigh=datad['voltage_high']) 
-#         time.sleep(0.5)
-            
-#         datad['enobdata_%010.3f'%freq] = [dat.fembs, dat.dat_enob_acq_2(sineflg=True), cfg_info, "SINE"]
-        
-#     fp = fdir + "QC_ENOB.bin"
-#     with open(fp, 'wb') as fn:
-#         pickle.dump(datad, fn)
-
-#     dat.sig_gen_config()
-#     tt.append(time.time())        
-# #    print ("\033[92mADC enob measurement is done. it took %d seconds   \033[0m"%(tt[-1]-tt[-2])) 
-#     print ("save_fdir_start_%s_end_save_fdir"%fdir)
-#     print ("save_file_start_%s_end_save_file"%fp)
-#     print ("Done! Pass! it took %d seconds"%(tt[-1]-tt[-2]))
-    
-########################################################################################################################################
-
-#LBL Test 8 Testing
-
 if 8 in tms:#if "enob_placeholder" in tms:
     print ("\033[95mADC ENOB measurement starts...   \033[0m")
     #dat.en_ref10MHz(ref_en = True)
@@ -591,8 +488,6 @@ if 8 in tms:#if "enob_placeholder" in tms:
     datad['voltage_low'] = 0.3 # V
     datad['voltage_high'] = 1.5 # V
 
-    current_freq = float(logsd["current_freq"].strip()) #####
-
     if siggen_type == 'keysight':
 
         for freq in [8106.23, 14781.95, 31948.09, 72002.41, 119686.13, 200748.44, 358104.70]:  
@@ -610,7 +505,7 @@ if 8 in tms:#if "enob_placeholder" in tms:
         datad['enobdata_%010.3f'%current_freq] = [dat.fembs, dat.dat_enob_acq_2(sineflg=True), cfg_info, "SINE"]
         
 ###### LBL, we need to change wb (write binary) to ab (append binary) from the pickle library, in order for our files to append instead of overwrite when the srs gen code iterates over test 8 using different frequencies
-    fp = fdir + 'QC_ENOB' + str(current_freq) + '.bin'
+    fp = fdir + 'QC_ENOB.bin'
     with open(fp, 'ab') as fn:
         pickle.dump(datad, fn)
 
@@ -619,9 +514,6 @@ if 8 in tms:#if "enob_placeholder" in tms:
     print ("save_fdir_start_%s_end_save_fdir"%fdir)
     print ("save_file_start_%s_end_save_file"%fp)
     print ("Done! Pass! it took %d seconds"%(tt[-1]-tt[-2]))
-    
-########################################################################################################################################
-
 
 
 if 11 in tms:#if "ringosc_placeholder" in tms:
@@ -643,8 +535,6 @@ if 11 in tms:#if "ringosc_placeholder" in tms:
     print ("save_file_start_%s_end_save_file"%fp)
     print ("Done! Pass! it took %d seconds"%(tt[-1]-tt[-2]))
 
-
-#########################################################################################################################################
 
 if 12 in tms:
     print ("\033[95mADC Triangle Waveform test starts...   \033[0m")
@@ -690,8 +580,7 @@ if 12 in tms:
     print ("save_file_start_%s_end_save_file"%fp)
     print ("Done! Pass! it took %d seconds"%(tt[-1]-tt[-2]))
     
-#########################################################################################################################################
-
+    
 if 9 in tms:
     print ("Turn DAT off")
     dat.femb_powering([])
